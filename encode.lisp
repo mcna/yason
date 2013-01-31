@@ -110,22 +110,22 @@
   (local-time:format-rfc1123-timestring stream object)
   (write-char #\" stream))
 
-(defun encode-symbol/value (symbol value stream)
-  (let ((string (symbol-name symbol)))
+(defun encode-assoc-key/value (key value stream)
+  (let ((string (string key)))
     (encode-key/value string value stream)))
 
 (defun encode-alist (object &optional (stream *standard-output*))
   (with-aggregate/object (stream #\{ #\})
     (loop for (key . value) in object
           do (with-element-output ()
-               (encode-symbol/value key value stream)))
+               (encode-assoc-key/value key value stream)))
     object))
 
 (defun encode-plist (object &optional (stream *standard-output*))
   (with-aggregate/object (stream #\{ #\})
     (loop for (key value) on object by #'cddr
           do (with-element-output ()
-               (encode-symbol/value key value stream)))
+               (encode-assoc-key/value key value stream)))
     object))
 
 (defmethod encode ((object (eql 'true)) &optional (stream *standard-output*))
@@ -164,6 +164,8 @@
 (defmethod initialize-instance :after ((stream json-output-stream) &key indent)
   (when (eq indent t)
     (setf (indent% stream) *default-indent-width*)))
+
+(defgeneric make-json-output-stream (stream &key indent))
 
 (defmethod make-json-output-stream (stream &key (indent t))
   "Create a JSON output stream with indentation enabled."
@@ -313,4 +315,4 @@ type for which an ENCODE method is defined."
    the ENCODE-SLOTS method as appropriate.")
   (:method (object)
     (with-object ()
-      (json:encode-slots object))))
+      (yason:encode-slots object))))

@@ -47,8 +47,8 @@
       YASON has its permanent home at <a
       href="http://common-lisp.net/project/yason/">common-lisp.net</a>.
       It can be obtained by downloading the <a
-      href="http://common-lisp.net/project/yason/files/yason.tar.gz">release
-      tarball</a>.  The current release is 0.4.0.
+      href="https://github.com/downloads/hanshuebner/yason/yason.tar.gz">release
+      tarball</a>.  The current release is <clix:current-release/>.
     </p>
     <p>
       You may also check out the current development version from its
@@ -70,6 +70,25 @@
       access YASON's symbols.  For that reason, YASON's symbols do not
       contain the string "JSON" themselves.  See below for usage
       samples.
+    </p>
+  </clix:chapter>
+
+  <clix:chapter name="json-package" title="Using JSON as package name">
+    Versions of YASON preceding the v0.6.0 release provided a package
+    nickname "JSON" for the "YASON" package.  This made it impossible
+    to load both YASON and CL-JSON into the same image, because
+    CL-JSON uses the "JSON" package name as well.
+
+    <p>
+      As CL-JSON's use of "JSON" as package name has a much longer
+      history and loading of both CL-JSON and YASON into the same
+      image has become more common, the "JSON" nickname was removed
+      from the YASON package with the v0.6.0 release.  Users will need
+      to change their applications so that the "JSON" nickname is no
+      longer used to refer to the "YASON" package.  It is understood
+      that this is a disruptive change, but as there is no
+      all-encompassing workaround, this step was felt to be the right
+      one to make
     </p>
   </clix:chapter>
 
@@ -163,7 +182,7 @@
 
     <pre>CL-USER> (defvar *json-string* "[{\"foo\":1,\"bar\":[7,8,9]},2,3,4,[5,6,7],true,null]")
 *JSON-STRING*
-CL-USER&gt; (let* ((result (json:parse *json-string*)))
+CL-USER&gt; (let* ((result (yason:parse *json-string*)))
            (print result)
            (alexandria:hash-table-plist (first result)))
 
@@ -175,10 +194,10 @@ CL-USER&gt; (defun maybe-convert-to-keyword (js-name)
 MAYBE-CONVERT-TO-KEYWORD
 CL-USER&gt; :FOO ; intern the :FOO keyword
 :FOO
-CL-USER&gt; (let* ((json:*parse-json-arrays-as-vectors* t)
-                (json:*parse-json-booleans-as-symbols* t)
-                (json:*parse-object-key-fn* #'maybe-convert-to-keyword)
-                (result (json:parse *json-string*)))
+CL-USER&gt; (let* ((yason:*parse-json-arrays-as-vectors* t)
+                (yason:*parse-json-booleans-as-symbols* t)
+                (yason:*parse-object-key-fn* #'maybe-convert-to-keyword)
+                (result (yason:parse *json-string*)))
            (print result)
            (alexandria:hash-table-plist (aref result 0)))
 
@@ -198,8 +217,8 @@ CL-USER&gt; (let* ((json:*parse-json-arrays-as-vectors* t)
         <clix:lambda-list>input &amp;key (object-key-fn
         *parse-object-as-key-fn*) (object-as *parse-object-as*)
         (json-arrays-as-vectors *parse-json-arrays-as-vectors*)
-        (json-booleans-as-symbols
-        *parse-json-booleans-as-symbols*)</clix:lambda-list>
+        (json-booleans-as-symbols *parse-json-booleans-as-symbols*)
+        (json-nulls-as-keyword *parse-json-null-as-keyword*)</clix:lambda-list>
         <clix:returns>object</clix:returns>
         <clix:description>
           Parse <clix:arg>input</clix:arg>, which must be a string or
@@ -208,8 +227,9 @@ CL-USER&gt; (let* ((json:*parse-json-arrays-as-vectors* t)
           <p>
             The keyword arguments <clix:arg>object-key-fn</clix:arg>,
             <clix:arg>object-as</clix:arg>,
-            <clix:arg>json-arrays-as-vectors</clix:arg> and
-            <clix:arg>json-booleans-as-symbols</clix:arg> can be used
+            <clix:arg>json-arrays-as-vectors</clix:arg>, 
+            <clix:arg>json-booleans-as-symbols</clix:arg>, and
+            <clix:arg>json-null-as-keyword</clix:arg> may be used
             to specify different values for the parsing parameters
             from the current bindings of the respective special
             variables.
@@ -237,6 +257,14 @@ CL-USER&gt; (let* ((json:*parse-json-arrays-as-vectors* t)
         <clix:description>
           If set to a true value, JSON booleans will be read as the
           symbols TRUE and FALSE instead of T and NIL, respectively.
+          NIL is the default.
+        </clix:description>
+      </clix:special-variable>
+
+      <clix:special-variable name="*parse-json-null-as-keyword*">
+        <clix:description>
+          If set to a true value, JSON null will be read as the
+          keyword :NULL, instead of NIL.
           NIL is the default.
         </clix:description>
       </clix:special-variable>
@@ -282,7 +310,7 @@ CL-USER&gt; (let* ((json:*parse-json-arrays-as-vectors* t)
         define additional methods (e.g. for encoding CLOS objects).
       </p>
       For example:
-      <pre>CL-USER&gt; (json:encode 
+      <pre>CL-USER&gt; (yason:encode 
           (list (alexandria:plist-hash-table
                  '("foo" 1 "bar" (7 8 9))
                  :test #'equal)
@@ -356,19 +384,19 @@ CL-USER&gt; (let* ((json:*parse-json-arrays-as-vectors* t)
         example).
       </p>
       For example:
-      <pre>CL-USER&gt; (json:with-output (*standard-output*)
-           (json:with-array ()
+      <pre>CL-USER&gt; (yason:with-output (*standard-output*)
+           (yason:with-array ()
              (dotimes (i 3)
-               (json:encode-array-element i))))
+               (yason:encode-array-element i))))
 [0,1,2]
 NIL
-CL-USER&gt; (json:with-output (*standard-output*)
-           (json:with-object ()
-             (json:encode-object-element "hello" "hu hu")
-             (json:with-object-element ("harr")
-               (json:with-array ()
+CL-USER&gt; (yason:with-output (*standard-output*)
+           (yason:with-object ()
+             (yason:encode-object-element "hello" "hu hu")
+             (yason:with-object-element ("harr")
+               (yason:with-array ()
                  (dotimes (i 3)
-                   (json:encode-array-element i))))))
+                   (yason:encode-array-element i))))))
 {"hello":"hu hu","harr":[0,1,2]}
 NIL</pre>
 
@@ -551,13 +579,13 @@ NIL</pre>
 
       <pre>CL-USER&gt; (defstruct user name age password)
 USER
-CL-USER&gt; (defmethod json:encode ((user user) &amp;optional (stream *standard-output*))
-           (json:with-output (stream)
-             (json:with-object ()
-               (json:encode-object-element "name" (user-name user))
-               (json:encode-object-element "age" (user-age user)))))
+CL-USER&gt; (defmethod yason:encode ((user user) &amp;optional (stream *standard-output*))
+           (yason:with-output (stream)
+             (yason:with-object ()
+               (yason:encode-object-element "name" (user-name user))
+               (yason:encode-object-element "age" (user-age user)))))
 #&lt;STANDARD-METHOD YASON:ENCODE (USER) {5B40A591}&gt;
-CL-USER&gt; (json:encode (list (make-user :name "horst" :age 27 :password "puppy")
+CL-USER&gt; (yason:encode (list (make-user :name "horst" :age 27 :password "puppy")
                             (make-user :name "uschi" :age 28 :password "kitten")))
 [{"name":"horst","age":27},{"name":"uschi","age":28}]
 (#S(USER :NAME "horst" :AGE 27 :PASSWORD "puppy")

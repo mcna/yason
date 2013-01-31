@@ -22,6 +22,9 @@
   "If set to a true value, JSON booleans will be read as the symbols
   TRUE and FALSE, not as T and NIL, respectively.")
 
+(defvar *parse-json-null-as-keyword* nil
+  "If set to a true value, JSON nulls will be read as the keyword :NULL, not as NIL.")
+
 (defvar *parse-object-as* :hash-table
   "Set to either :hash-table, :plist or :alist to determine the data
   structure that objects are parsed to.")
@@ -102,7 +105,7 @@
       (find (peek-char nil input nil)
             `(("true" ,(if *parse-json-booleans-as-symbols* 'true t))
               ("false" ,(if *parse-json-booleans-as-symbols* 'false nil))
-              ("null" nil))
+              ("null"  ,(if *parse-json-null-as-keyword* :null nil)))
             :key (lambda (entry) (aref (car entry) 0))
             :test #'eql)
     (loop
@@ -135,6 +138,13 @@
      (setf (gethash key to) value)
      to)))
 
+(define-condition expected-colon (error)
+  ((key-string :initarg :key-string
+               :reader key-string))
+  (:report (lambda (c stream)
+             (format stream "expected colon to follow key ~S used in JSON object"
+                     (key-string c)))))
+
 (defun parse-object (input)
   (let ((return-value (create-container)))
     (read-char input)
@@ -145,14 +155,14 @@
        (skip-whitespace input)
        (setf return-value
              (add-attribute return-value
-                            (prog1
-                                (let ((key-string (parse-string input)))
+                            (let ((key-string (parse-string input)))
+                              (prog1
                                   (or (funcall *parse-object-key-fn* key-string)
-                                      (error 'cannot-convert-key :key-string key-string)))
-                              (skip-whitespace input)
-                              (unless (eql #\: (read-char input))
-                                (error 'expected-colon))
-                              (skip-whitespace input))
+                                      (error 'cannot-convert-key :key-string key-string))
+                                (skip-whitespace input)
+                                (unless (eql #\: (read-char input))
+                                  (error 'expected-colon :key-string key-string))
+                                (skip-whitespace input)))
                             (parse input)))
        (ecase (peek-char-skipping-whitespace input)
          (#\, (read-char input))
@@ -223,7 +233,8 @@
                 (object-key-fn *parse-object-key-fn*)
                 (object-as *parse-object-as*)
                 (json-arrays-as-vectors *parse-json-arrays-as-vectors*)
-                (json-booleans-as-symbols *parse-json-booleans-as-symbols*))
+                (json-booleans-as-symbols *parse-json-booleans-as-symbols*)
+                (json-nulls-as-keyword *parse-json-null-as-keyword*))
   "Parse INPUT, which needs to be a string or a stream, as JSON.
   Returns the lisp representation of the JSON structure parsed.  The
   keyword arguments can be used to override the parser settings as
@@ -231,5 +242,6 @@
   (let ((*parse-object-key-fn* object-key-fn)
         (*parse-object-as* object-as)
         (*parse-json-arrays-as-vectors* json-arrays-as-vectors)
-        (*parse-json-booleans-as-symbols* json-booleans-as-symbols))
+        (*parse-json-booleans-as-symbols* json-booleans-as-symbols)
+        (*parse-json-null-as-keyword* json-nulls-as-keyword))
     (parse% input)))
