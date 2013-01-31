@@ -105,6 +105,11 @@
         (encode value stream)))
     object))
 
+(defmethod encode ((object local-time:timestamp) &optional (stream *standard-output*))
+  (write-char #\" stream)
+  (local-time:format-rfc1123-timestring stream object)
+  (write-char #\" stream))
+
 (defun encode-symbol/value (symbol value stream)
   (let ((string (symbol-name symbol)))
     (encode-key/value string value stream)))
