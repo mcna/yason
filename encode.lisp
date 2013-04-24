@@ -33,7 +33,12 @@
      #\Return "\\r"
      #\Tab "\\t")))
 
-(defmethod encode ((string string) &optional (stream *standard-output*))
+(defun default-json-output ()
+  (if (boundp '*json-output*)
+      *json-output*
+      *standard-output*))
+
+(defmethod encode ((string string) &optional (stream (default-json-output)))
   (write-char #\" stream)
   (dotimes (i (length string))
     (let* ((char (aref string i))
@@ -44,15 +49,15 @@
   (write-char #\" stream)
   string)
 
-(defmethod encode ((object rational) &optional (stream *standard-output*))
+(defmethod encode ((object rational) &optional (stream (default-json-output)))
   (encode (float object) stream)
   object)
 
-(defmethod encode ((object float) &optional (stream *standard-output*))
+(defmethod encode ((object float) &optional (stream (default-json-output)))
   (princ (coerce object 'single-float) stream)
   object)
 
-(defmethod encode ((object integer) &optional (stream *standard-output*))
+(defmethod encode ((object integer) &optional (stream (default-json-output)))
   (princ object stream))
 
 (defmacro with-aggregate/object ((stream opening-char closing-char) &body body)
@@ -83,7 +88,7 @@
   (write-char #\: stream)
   (encode value stream))
 
-(defmethod encode ((object hash-table) &optional (stream *standard-output*))
+(defmethod encode ((object hash-table) &optional (stream (default-json-output)))
   (with-aggregate/object (stream #\{ #\})
     (maphash (lambda (key value)
                (with-element-output ()
@@ -91,21 +96,21 @@
              object)
     object))
                  
-(defmethod encode ((object vector) &optional (stream *standard-output*))
+(defmethod encode ((object vector) &optional (stream (default-json-output)))
   (with-aggregate/object (stream #\[ #\])
     (loop for value across object
           do (with-element-output ()
                (encode value stream)))
     object))
 
-(defmethod encode ((object list) &optional (stream *standard-output*))
+(defmethod encode ((object list) &optional (stream (default-json-output)))
   (with-aggregate/object (stream #\[ #\])
     (dolist (value object)
       (with-element-output ()
         (encode value stream)))
     object))
 
-(defmethod encode ((object local-time:timestamp) &optional (stream *standard-output*))
+(defmethod encode ((object local-time:timestamp) &optional (stream (default-json-output)))
   (write-char #\" stream)
   (local-time:format-rfc1123-timestring stream object)
   (write-char #\" stream))
@@ -114,37 +119,37 @@
   (let ((string (string key)))
     (encode-key/value string value stream)))
 
-(defun encode-alist (object &optional (stream *standard-output*))
+(defun encode-alist (object &optional (stream (default-json-output)))
   (with-aggregate/object (stream #\{ #\})
     (loop for (key . value) in object
           do (with-element-output ()
                (encode-assoc-key/value key value stream)))
     object))
 
-(defun encode-plist (object &optional (stream *standard-output*))
+(defun encode-plist (object &optional (stream (default-json-output)))
   (with-aggregate/object (stream #\{ #\})
     (loop for (key value) on object by #'cddr
           do (with-element-output ()
                (encode-assoc-key/value key value stream)))
     object))
 
-(defmethod encode ((object (eql 'true)) &optional (stream *standard-output*))
+(defmethod encode ((object (eql 'true)) &optional (stream (default-json-output)))
   (write-string "true" stream)
   object)
 
-(defmethod encode ((object (eql 'false)) &optional (stream *standard-output*))
+(defmethod encode ((object (eql 'false)) &optional (stream (default-json-output)))
   (write-string "false" stream)
   object)
 
-(defmethod encode ((object (eql 'null)) &optional (stream *standard-output*))
+(defmethod encode ((object (eql 'null)) &optional (stream (default-json-output)))
   (write-string "null" stream)
   object)
 
-(defmethod encode ((object (eql t)) &optional (stream *standard-output*))
+(defmethod encode ((object (eql t)) &optional (stream (default-json-output)))
   (write-string "true" stream)
   object)
 
-(defmethod encode ((object (eql nil)) &optional (stream *standard-output*))
+(defmethod encode ((object (eql nil)) &optional (stream (default-json-output)))
   (write-string "null" stream)
   object)
 
@@ -270,6 +275,17 @@ method is defined."
   "Encode OBJECTS, a list of JSON encodable objects, as array elements."
   (dolist (object objects)
     (encode-array-element object)))
+
+(defmacro with-array-element (() &body body)
+  "Open a new encoding context to encode a JSON array element.  The
+  value will be whatever BODY serializes to the current JSON output
+  using one of the stream encoding functions."
+  `(progn
+     (next-aggregate-element)
+     (write-indentation *json-output*)
+     (unwind-protect
+          (progn ,@body)
+       (setf (car (stack *json-output*)) #\,))))
 
 (defun encode-object-element (key value)
   "Encode KEY and VALUE as object element to the last JSON object

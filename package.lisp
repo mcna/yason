@@ -42,4 +42,5 @@
    #:with-object
    #:encode-object-element
    #:encode-object-elements
-   #:with-object-element))
+   #:with-object-element
+   #:with-array-element))
